@@ -1,0 +1,90 @@
+---
+title: "MLE for Chapman-Richard 2000 Model"
+author: "Olusoji Oluwafemi Daniel"
+date: "3 August 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#
+list.of.packages <- c("ggplot2", "Rcpp","knitr","markdown","readr","dplyr","tidyr","readxl","stats4")
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages)
+#
+require(knitr)
+require(markdown)
+require(readr)
+require(dplyr)
+require(tidyr)
+require(readxl)
+require(stats4)
+```
+
+### Synopsis
+
+This script attempts to Provide MLE Parameter estimates for the Chapman-Richard 2000 Model. The Data used is provided by ........ Data consists of height and dbh measurements of two kinds of plants (Pine and Gmelina College). Note that no random components was added to the model but the difference between the measured response and the model was maximized to obtain the parameter estimates.
+
+### Reading and Cleaning Dataset
+
+```{r}
+#reading in the dataset
+growthr <- read_excel('./Data/TREE DATA2.xlsx') %>% tbl_df()
+#giving proper column names (GC=Gmellina College)
+names(growthr) <- c('GC_Height','GC_Dbh','PINE_Height','PINE_Dbh')
+#taking out the redundant first row to get data is wide format
+growthr <- growthr %>% slice(-1)
+###obtaining the Gmellina College Dataset
+growthgc <- growthr %>% select(starts_with('GC'))
+#dataset for gmellina college
+growthgc <- growthgc[(growthgc %>% complete.cases()),]
+#checking if the class of variable is appropriate
+sapply(growthgc,class)
+#converting to appropriate class
+growthgc <- growthgc %>% sapply(.,as.numeric) %>% tbl_df()
+###obtaining the PINE dataset
+growthpine <- growthr %>% select(starts_with('PINE'))
+#checking if variable classes are appropriate
+sapply(growthpine,class)
+#converting to appropriate class
+growthpine <- growthpine %>% sapply(.,as.numeric) %>% tbl_df()
+```
+
+### Likelihood Function
+
+```{r}
+growth <- function(height,dbh,fixed=c(F,F,F)){
+  #allowing one of the parameters to be fixeds
+   parameters <- fixed
+  function(p){
+    parameters[!fixed] <- p
+    a <- parameters[1]
+    b <- parameters[2]
+    c <- parameters[3]
+    R <- height - 1.3 - a*((1 - exp(-b*dbh))^c)
+    loglike <- sum(log(R))
+    -loglike
+  }
+}
+#pine
+growthLL <- growth(height=growthpine %>% select(PINE_Height),dbh=growthpine %>% select(PINE_Dbh))
+#
+pineresults <- stats::optim(rep(1,3),growthLL,hessian=T,method='SANN')
+#
+growthLL2 <- growth(height=growthgc %>% select(GC_Height),dbh=growthgc %>% select(GC_Dbh))
+GCresults2 <- stats::optim(c(-0.05,1,1),growthLL2,hessian=T,method='SANN')
+```
+
+### Estimated Parameter Values (PINE)
+
+```{r}
+kable(tbl_df(data.frame(parameters=c('a','b','c'),value=pineresults$par)))
+```
+
+### Estimated Parameter Values (GC)
+
+```{r}
+kable(tbl_df(data.frame(parameters=c('a','b','c'),value=GCresults2$par)))
+```
+
+
